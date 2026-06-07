@@ -22,10 +22,12 @@ echo ""
 echo "=== 构建完成 ==="
 echo ""
 echo "镜像列表:"
-docker images "$REGISTRY/mysql" "$REGISTRY/mssql" "$REGISTRY/postgres" --format 'table {{.Repository}}:{{.Tag}}\t{{.Size}}'
+for img in "$REGISTRY/mysql" "$REGISTRY/mssql" "$REGISTRY/postgres"; do
+  docker images "$img" --format 'table {{.Repository}}:{{.Tag}}\t{{.Size}}' | awk 'NR==1 && !h{print; h=1} NR>1'
+done
 
 echo ""
 echo "大小对比:"
-echo "  MySQL:  $(docker images mysql:8.0                      --format '{{.Size}}')  →  $(docker images "$MYSQL_TAG" --format '{{.Size}}')"
-echo "  MSSQL:  $(docker images softwareplant/mssql:clean-2017-mcr-jira-9-arm64 --format '{{.Size}}')  →  $(docker images "$MSSQL_TAG" --format '{{.Size}}')"
-echo "  PG:     $(docker images postgres:17                    --format '{{.Size}}')  →  $(docker images "$PG_TAG" --format '{{.Size}}')"
+echo "  MySQL:  $(docker images mysql:8.0                      --format '{{.Size}}')  →  $(docker images "$MYSQL_TAG" --format '{{.Size}}')  (预估 ~340MB)"
+echo "  MSSQL:  $(docker images softwareplant/mssql:clean-2017-mcr-jira-9-arm64 --format '{{.Size}}')  →  $(docker images "$MSSQL_TAG" --format '{{.Size}}')  (预估 ~1.7GB)"
+echo "  PG:     $(docker images postgres:17                    --format '{{.Size}}')  →  $(docker images "$PG_TAG" --format '{{.Size}}')  (预估 ~300MB)"

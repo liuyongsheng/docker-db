@@ -1,17 +1,39 @@
 # ============================================================
 # MySQL 8.0 Slim — 二阶段构建
-# Stage 1: 从官方镜像删除冗余 (mysqlsh 占 460MB)
+# Stage 1: 从官方镜像删除冗余 (mysqlsh 占 460MB + RPM 库等)
 # Stage 2: 展平到 scratch，完全摆脱 Oracle Linux 基础层
 # ============================================================
 
 FROM mysql:8.0 AS builder
 
+# 删除 mysqlsh 全部残留 (lib 占 460MB, bin+libexec 占 32MB)
 RUN rm -rf \
     /usr/lib/mysqlsh \
+    /usr/bin/mysqlsh \
+    /usr/libexec/mysqlsh \
+    /usr/share/mysqlsh \
+    /root/.mysqlsh
+
+# 删除系统冗余
+RUN rm -rf \
+    /var/lib/rpm \
+    /usr/lib/rpm \
+    /var/lib/dnf \
+    /usr/share/licenses \
+    /usr/share/misc \
+    /usr/share/gcc-11 \
+    /usr/lib/debug \
     /usr/share/doc \
     /usr/share/man \
     /usr/share/locale \
-    /var/cache/yum
+    /var/cache/yum \
+    /var/cache
+
+# 删除 MySQL 多语言错误消息 (仅保留英文)
+RUN find /usr/share/mysql-8.0 -maxdepth 1 -type f ! -name '*en*' ! -name '*messages*' -delete 2>/dev/null; \
+    for lang in ar bg ca cs da de el es et fi fr gl he hi hr hu id is it ja ko lt lv ms nb nl pl pt ro ru sk sl sr sv th tr uk vi zh; do \
+      rm -rf "/usr/share/mysql-8.0/$lang" 2>/dev/null; \
+    done
 
 FROM scratch
 

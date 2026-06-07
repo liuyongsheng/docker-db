@@ -1,25 +1,47 @@
 # ============================================================
 # PostgreSQL 17 Slim — 二阶段构建
-# Stage 1: 从官方镜像删除冗余 (locale/perl/doc 等)
+# Stage 1: 删除 LLVM/perl/z3/locale/doc 等冗余，替换 perl 包装
 # Stage 2: 展平到 scratch，消除多层开销
 # ============================================================
 
 FROM postgres:17 AS builder
 
+# 删除大体积无用组件（保留 ICU/gconv 以支持多编码）
 RUN rm -rf \
+    /usr/lib/aarch64-linux-gnu/libLLVM* \
+    /usr/lib/aarch64-linux-gnu/libLLVM-*.so \
+    /usr/lib/postgresql/17/lib/llvmjit* \
+    /usr/lib/aarch64-linux-gnu/perl \
+    /usr/lib/aarch64-linux-gnu/perl-base \
+    /usr/lib/aarch64-linux-gnu/libperl* \
+    /usr/bin/perl* \
+    /usr/lib/aarch64-linux-gnu/libz3* \
+    /usr/share/perl \
+    /usr/share/perl5 \
     /usr/share/doc \
     /usr/share/man \
     /usr/share/locale \
     /usr/share/i18n \
-    /usr/share/perl \
-    /usr/share/perl5 \
     /usr/lib/locale \
     /var/cache/apt \
     /var/log
 
+# 将 perl 编写的 pg_wrapper 符号链接替换为直接指向真实二进制
+RUN for f in /usr/bin/psql /usr/bin/createdb /usr/bin/dropdb /usr/bin/clusterdb /usr/bin/reindexdb /usr/bin/vacuumdb /usr/bin/createuser /usr/bin/dropuser /usr/bin/pg_dump /usr/bin/pg_dumpall /usr/bin/pg_restore /usr/bin/pg_archivecleanup /usr/bin/pg_basebackup /usr/bin/pg_isready /usr/bin/pg_receivewal /usr/bin/pg_recvlogical /usr/bin/pgbench /usr/bin/pg_verifybackup /usr/bin/pg_waldump /usr/bin/pg_test_fsync /usr/bin/pg_test_timing /usr/bin/pg_checksums /usr/bin/pg_controldata /usr/bin/pg_resetwal /usr/bin/pg_rewind /usr/bin/pg_upgrade /usr/bin/pg_config /usr/bin/pg_amcheck /usr/bin/pg_combinebackup /usr/bin/pg_createsubscriber /usr/bin/oid2name /usr/bin/pg_walsummary /usr/bin/vacuumlo; do \
+      if [ -L "$f" ]; then \
+        real=$(basename "$f"); \
+        rm -f "$f"; \
+        ln -s "/usr/lib/postgresql/17/bin/$real" "$f"; \
+      fi; \
+    done
+
 FROM scratch
 
 COPY --from=builder / /
+
+ENV PG_MAJOR=17
+ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/lib/postgresql/${PG_MAJOR}/bin
+ENV PGDATA=/var/lib/postgresql/data
 
 VOLUME /var/lib/postgresql/data
 EXPOSE 5432
