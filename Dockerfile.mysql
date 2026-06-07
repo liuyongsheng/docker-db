@@ -1,0 +1,23 @@
+# ============================================================
+# MySQL 8.0 Slim — 二阶段构建
+# Stage 1: 从官方镜像删除冗余 (mysqlsh 占 460MB)
+# Stage 2: 展平到 scratch，完全摆脱 Oracle Linux 基础层
+# ============================================================
+
+FROM mysql:8.0 AS builder
+
+RUN rm -rf \
+    /usr/lib/mysqlsh \
+    /usr/share/doc \
+    /usr/share/man \
+    /usr/share/locale \
+    /var/cache/yum
+
+FROM scratch
+
+COPY --from=builder / /
+
+VOLUME /var/lib/mysql
+EXPOSE 3306
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["mysqld"]
