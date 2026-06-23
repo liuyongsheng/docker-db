@@ -1,16 +1,36 @@
 # ============================================================
-# MSSQL 2017 Slim — 二阶段构建
-# Stage 1: 清理 Jira 残留 / Python / debug / locale 等
+# MSSQL 2017 Slim — 二阶段构建，双架构
+# Stage 1: 按架构选择基础镜像并清理冗余
+#   amd64 → mcr.microsoft.com/mssql/server:2017-latest
+#   arm64 → softwareplant/mssql:clean-2017-mcr-jira-9-arm64
 # Stage 2: 展平到 scratch，消除多层开销
 # ============================================================
 
-FROM softwareplant/mssql:clean-2017-mcr-jira-9-arm64 AS builder
+ARG TARGETARCH
 
-# 修复 entrypoint: /db-update.sh 不存在时不报错
+FROM mcr.microsoft.com/mssql/server:2017-latest AS mssql-amd64
+
+RUN rm -rf \
+    /usr/lib/debug \
+    /usr/lib/python2.7 \
+    /usr/lib/python3.6 \
+    /var/lib/apt \
+    /var/lib/dpkg \
+    /usr/share/i18n \
+    /usr/share/mime \
+    /usr/share/info \
+    /usr/share/perl5 \
+    /usr/lib/locale \
+    /usr/share/doc \
+    /usr/share/man \
+    /usr/share/locale \
+    /var/cache/apt \
+    /var/log
+
+FROM softwareplant/mssql:clean-2017-mcr-jira-9-arm64 AS mssql-arm64
+
 RUN sed -i 's|^/db-update.sh & /opt/mssql/bin/sqlservr$|[ -x /db-update.sh ] \&\& /db-update.sh \&\n/opt/mssql/bin/sqlservr|' /docker-entrypoint.sh
 
-# 删除 Jira 相关残留 (该镜像专为 Jira 9 定制，含 67MB 备份 + 144MB 预恢复数据库)
-# 及系统冗余 (Python/debug/locale/apt 等)
 RUN rm -rf \
     /jira9.bak \
     /init-j9.sh \
@@ -34,9 +54,11 @@ RUN rm -rf \
     /var/cache/apt \
     /var/log
 
+FROM mssql-${TARGETARCH} AS final
+
 FROM scratch
 
-COPY --from=builder / /
+COPY --from=final / /
 
 VOLUME /var/opt/mssql
 EXPOSE 1433
